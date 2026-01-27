@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Paper } from '@/types/paper';
+import { Paper, getCategoryName } from '@/types/paper';
 import BookmarkButton from './BookmarkButton';
 import BucketButton from './BucketButton';
 
@@ -32,8 +32,9 @@ export default function PaperCard({ paper }: PaperCardProps) {
           <span
             key={category}
             className="px-2.5 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-full"
+            title={category}
           >
-            {category}
+            {getCategoryName(category)}
           </span>
         ))}
         {paper.categories.length > 2 && (

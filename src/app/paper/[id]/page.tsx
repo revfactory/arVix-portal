@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { Paper } from '@/types/paper';
+import { Paper, getCategoryName } from '@/types/paper';
 import BookmarkButton from '@/components/BookmarkButton';
 import AIAnalysis from '@/components/AIAnalysis';
 import MarkdownView from '@/components/MarkdownView';
@@ -201,8 +201,9 @@ export default function PaperDetailPage({ params }: PageProps) {
               <span
                 key={category}
                 className="px-3 py-1 text-sm font-medium bg-blue-50 text-blue-700 rounded-full"
+                title={category}
               >
-                {category}
+                {getCategoryName(category)}
               </span>
             ))}
           </div>
