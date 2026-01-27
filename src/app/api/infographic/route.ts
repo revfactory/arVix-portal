@@ -93,10 +93,10 @@ ${keyPointsText}
           generationConfig: {
             responseModalities: ['TEXT', 'IMAGE'],
             responseMimeType: 'text/plain',
-          },
-          imageConfig: {
-            aspectRatio: '16:9',  // 와이드스크린
-            imageSize: '4K',      // 최고 해상도
+            imageGenerationConfig: {
+              aspectRatio: '16:9',
+              numberOfImages: 1,
+            },
           },
         }),
       }
