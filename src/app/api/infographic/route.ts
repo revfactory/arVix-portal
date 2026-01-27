@@ -92,10 +92,8 @@ ${keyPointsText}
           ],
           generationConfig: {
             responseModalities: ['TEXT', 'IMAGE'],
-            responseMimeType: 'text/plain',
-            imageGenerationConfig: {
+            imageConfig: {
               aspectRatio: '16:9',
-              numberOfImages: 1,
             },
           },
         }),
