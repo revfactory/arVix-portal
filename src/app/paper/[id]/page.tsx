@@ -172,7 +172,7 @@ export default function PaperDetailPage({ params }: PageProps) {
         {/* 제목 및 북마크 */}
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-2xl font-bold text-gray-900 leading-tight">{paper.title}</h1>
-          <BookmarkButton paper={paper} size="lg" showLabel />
+          <BookmarkButton paper={paper} size="lg" />
         </div>
 
         {/* 저자 */}
