@@ -36,12 +36,15 @@ export default function Home() {
 
   const [papers, setPapers] = useState<Paper[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [totalResults, setTotalResults] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
   const [enhancedSearch, setEnhancedSearch] = useState<EnhancedSearch | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [currentStart, setCurrentStart] = useState(0);
+  const RESULTS_PER_PAGE = 20;
 
   // 캐시에서 검색 결과 복원
   const restoreFromCache = useCallback(() => {
@@ -76,25 +79,28 @@ export default function Home() {
     }
   }, []);
 
-  // 초기 로드: URL 파라미터 또는 캐시에서 복원
+  // URL 파라미터 변경 감지 및 검색 수행
   useEffect(() => {
     const urlQuery = searchParams.get('q');
     const urlCategory = searchParams.get('category');
 
     if (urlQuery) {
       // URL에 검색어가 있으면 해당 검색 수행
-      setSearchQuery(urlQuery);
-      if (urlCategory) setSelectedCategory(urlCategory);
-      performSearch(urlQuery, urlCategory);
-    } else if (restoreFromCache()) {
-      // 캐시 복원 성공
-      setIsInitialized(true);
-    } else {
-      // 최신 논문 로드
-      loadLatestPapers();
+      if (urlQuery !== searchQuery) {
+        setSearchQuery(urlQuery);
+        if (urlCategory) setSelectedCategory(urlCategory);
+        performSearch(urlQuery, urlCategory);
+      }
+    } else if (!isInitialized) {
+      if (restoreFromCache()) {
+        // 캐시 복원 성공
+      } else {
+        // 최신 논문 로드
+        loadLatestPapers();
+      }
     }
     setIsInitialized(true);
-  }, []);
+  }, [searchParams]);
 
   const loadLatestPapers = async () => {
     setIsLoading(true);
@@ -117,11 +123,13 @@ export default function Home() {
     setIsLoading(true);
     setHasSearched(true);
     setEnhancedSearch(null);
+    setCurrentStart(0);
 
     try {
       const params = new URLSearchParams({
         query,
-        maxResults: '20',
+        maxResults: String(RESULTS_PER_PAGE),
+        start: '0',
       });
 
       if (category) {
@@ -150,6 +158,42 @@ export default function Home() {
       console.error('검색 오류:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 더보기 함수
+  const loadMore = async () => {
+    if (isLoadingMore || !searchQuery) return;
+
+    setIsLoadingMore(true);
+    const nextStart = currentStart + RESULTS_PER_PAGE;
+
+    try {
+      const params = new URLSearchParams({
+        query: searchQuery,
+        maxResults: String(RESULTS_PER_PAGE),
+        start: String(nextStart),
+      });
+
+      if (selectedCategory) {
+        params.set('category', selectedCategory);
+      }
+
+      const response = await fetch(`/api/arxiv?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        // 중복 논문 필터링
+        setPapers(prev => {
+          const existingIds = new Set(prev.map(p => p.arxivId));
+          const newPapers = data.papers.filter((p: Paper) => !existingIds.has(p.arxivId));
+          return [...prev, ...newPapers];
+        });
+        setCurrentStart(nextStart);
+      }
+    } catch (error) {
+      console.error('더보기 오류:', error);
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -252,6 +296,34 @@ export default function Home() {
           isLoading={isLoading}
           emptyMessage={hasSearched ? '검색 결과가 없습니다.' : '논문을 검색해보세요.'}
         />
+
+        {/* 더보기 버튼 */}
+        {hasSearched && !isLoading && papers.length > 0 && papers.length < totalResults && (
+          <div className="mt-6 text-center">
+            <button
+              onClick={loadMore}
+              disabled={isLoadingMore}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoadingMore ? (
+                <>
+                  <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  로딩 중...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  더보기 ({papers.length} / {totalResults.toLocaleString()})
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

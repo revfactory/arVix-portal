@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, use } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Paper, getCategoryName } from '@/types/paper';
 import BookmarkButton from '@/components/BookmarkButton';
@@ -13,9 +14,13 @@ interface PageProps {
 
 export default function PaperDetailPage({ params }: PageProps) {
   const { id } = use(params);
+  const router = useRouter();
   const [paper, setPaper] = useState<Paper | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 유사 논문 검색 상태
+  const [isFindingSimilar, setIsFindingSimilar] = useState(false);
 
   // 번역 상태
   const [translation, setTranslation] = useState<string | null>(null);
@@ -142,6 +147,34 @@ export default function PaperDetailPage({ params }: PageProps) {
     }
   };
 
+  const findSimilarPapers = async () => {
+    if (!paper || isFindingSimilar) return;
+
+    setIsFindingSimilar(true);
+    try {
+      const response = await fetch('/api/similar-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: paper.title,
+          abstract: paper.abstract,
+          categories: paper.categories,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.searchQuery) {
+          router.push(`/?q=${encodeURIComponent(data.searchQuery)}`);
+        }
+      }
+    } catch (err) {
+      console.error('유사 논문 검색 오류:', err);
+    } finally {
+      setIsFindingSimilar(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('ko-KR', {
@@ -213,7 +246,10 @@ export default function PaperDetailPage({ params }: PageProps) {
       <div className="bg-white rounded-lg shadow-sm border p-6 space-y-4">
         {/* 제목 및 북마크 */}
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-2xl font-bold text-gray-900 leading-tight">{paper.title}</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 leading-tight">{paper.title}</h1>
+            <p className="mt-1 text-sm font-mono text-gray-400">arXiv:{paper.arxivId}</p>
+          </div>
           <BookmarkButton paper={paper} size="lg" />
         </div>
 
@@ -285,6 +321,28 @@ export default function PaperDetailPage({ params }: PageProps) {
             </svg>
             arXiv에서 보기
           </a>
+          <button
+            onClick={findSimilarPapers}
+            disabled={isFindingSimilar}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isFindingSimilar ? (
+              <>
+                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                검색 중...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16l2.879-2.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                유사 논문 찾기
+              </>
+            )}
+          </button>
         </div>
       </div>
 

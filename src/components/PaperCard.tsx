@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Paper, getCategoryName } from '@/types/paper';
 import BookmarkButton from './BookmarkButton';
@@ -10,6 +12,36 @@ interface PaperCardProps {
 }
 
 export default function PaperCard({ paper }: PaperCardProps) {
+  const router = useRouter();
+  const [isFindingSimilar, setIsFindingSimilar] = useState(false);
+
+  const findSimilarPapers = async () => {
+    if (isFindingSimilar) return;
+
+    setIsFindingSimilar(true);
+    try {
+      const response = await fetch('/api/similar-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: paper.title,
+          abstract: paper.abstract,
+          categories: paper.categories,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.searchQuery) {
+          router.push(`/?q=${encodeURIComponent(data.searchQuery)}`);
+        }
+      }
+    } catch (err) {
+      console.error('유사 논문 검색 오류:', err);
+    } finally {
+      setIsFindingSimilar(false);
+    }
+  };
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('ko-KR', {
@@ -54,8 +86,9 @@ export default function PaperCard({ paper }: PaperCardProps) {
         </h3>
       </Link>
 
-      {/* 저자 및 날짜 */}
+      {/* 논문 ID, 저자 및 날짜 */}
       <div className="text-xs text-gray-500 mb-3">
+        <p className="font-mono text-gray-400 mb-1">arXiv:{paper.arxivId}</p>
         <p className="truncate">{paper.authors.slice(0, 2).join(', ')}{paper.authors.length > 2 && ` 외 ${paper.authors.length - 2}명`}</p>
         <p className="mt-1">{formatDate(paper.publishedAt)}</p>
       </div>
@@ -82,6 +115,24 @@ export default function PaperCard({ paper }: PaperCardProps) {
           >
             PDF
           </a>
+          <button
+            onClick={findSimilarPapers}
+            disabled={isFindingSimilar}
+            className="text-xs font-medium text-green-600 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50 transition-colors disabled:opacity-50"
+            title="유사한 논문 찾기"
+          >
+            {isFindingSimilar ? (
+              <span className="flex items-center gap-1">
+                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                검색중
+              </span>
+            ) : (
+              '유사논문'
+            )}
+          </button>
         </div>
         <div className="flex items-center gap-1">
           <BucketButton paper={paper} size="sm" />
