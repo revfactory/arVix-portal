@@ -33,7 +33,6 @@ arXiv 논문을 검색하고, AI로 분석하며, 북마크를 관리할 수 있
 ### 사전 요구사항
 
 - Node.js 18 이상
-- Python 3.8 이상 (인포그래픽 생성용)
 - Google Gemini API 키
 
 ### 설치
@@ -45,9 +44,6 @@ cd arVix-portal
 
 # 의존성 설치
 npm install
-
-# Python 패키지 설치 (인포그래픽 생성용)
-pip install google-genai pillow
 ```
 
 ### 환경 변수 설정
@@ -122,8 +118,6 @@ arVix-portal/
 │   │   └── storage.ts              # Supabase Storage 유틸리티
 │   └── types/
 │       └── paper.ts                # 타입 정의
-├── scripts/
-│   └── generate_infographic.py     # 인포그래픽 생성 스크립트
 └── public/
     └── infographics/               # 생성된 인포그래픽 저장
 ```
