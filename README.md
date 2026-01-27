@@ -70,6 +70,44 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 2. SQL Editor에서 `supabase-schema.sql` 실행
 3. Storage에서 `infographics` 버킷 생성 (Public 체크)
 
+#### Storage Policy 설정
+
+`infographics` 버킷에 다음 정책을 추가합니다:
+
+**1. SELECT (읽기) 정책 - 모든 사용자 허용**
+```sql
+-- Policy name: Public Read Access
+CREATE POLICY "Public Read Access"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'infographics');
+```
+
+**2. INSERT (업로드) 정책 - 모든 사용자 허용**
+```sql
+-- Policy name: Public Upload Access
+CREATE POLICY "Public Upload Access"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'infographics');
+```
+
+**3. UPDATE (수정) 정책 - 모든 사용자 허용**
+```sql
+-- Policy name: Public Update Access
+CREATE POLICY "Public Update Access"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'infographics');
+```
+
+또는 Supabase 대시보드에서 설정:
+1. Storage → `infographics` 버킷 → Policies 탭
+2. "New Policy" 클릭
+3. "For full customization" 선택
+4. 각각 SELECT, INSERT, UPDATE에 대해 정책 추가
+   - Policy name: 위 이름 사용
+   - Allowed operation: SELECT / INSERT / UPDATE
+   - Target roles: 체크 안함 (모든 사용자)
+   - USING/WITH CHECK expression: `bucket_id = 'infographics'`
+
 > **참고**: 북마크는 브라우저 localStorage에 저장됩니다. 번역, AI 분석, 인포그래픽은 PostgreSQL에 캐싱되어 재사용됩니다.
 
 ### 실행
