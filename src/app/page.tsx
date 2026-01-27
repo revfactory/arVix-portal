@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import SearchBar from '@/components/SearchBar';
 import CategoryFilter from '@/components/CategoryFilter';
@@ -30,7 +30,7 @@ interface SearchCache {
   timestamp: number;
 }
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -326,5 +326,30 @@ export default function Home() {
         )}
       </div>
     </div>
+  );
+}
+
+function HomeLoading() {
+  return (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">arXiv 논문 포털</h1>
+        <p className="text-gray-600">AI 연구 논문을 검색하고, 분석하고, 관리하세요</p>
+      </div>
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<HomeLoading />}>
+      <HomeContent />
+    </Suspense>
   );
 }
