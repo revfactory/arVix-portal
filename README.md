@@ -54,7 +54,7 @@ pip install google-genai pillow
 GEMINI_API_KEY=your_gemini_api_key
 DATABASE_URL=postgresql://user:password@host:port/database
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
 | 변수 | 필수 | 설명 |
@@ -62,7 +62,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 | `GEMINI_API_KEY` | O | Google Gemini API 키 |
 | `DATABASE_URL` | O | PostgreSQL 연결 문자열 (번역/분석 캐싱용) |
 | `NEXT_PUBLIC_SUPABASE_URL` | O | Supabase 프로젝트 URL (스토리지용) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | O | Supabase Anonymous 키 |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | O | Supabase Publishable 키 |
 
 ### Supabase 설정
 
