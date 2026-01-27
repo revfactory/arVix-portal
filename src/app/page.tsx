@@ -6,6 +6,13 @@ import CategoryFilter from '@/components/CategoryFilter';
 import PaperList from '@/components/PaperList';
 import { Paper } from '@/types/paper';
 
+interface EnhancedSearch {
+  originalQuery: string;
+  optimizedQuery: string;
+  keywords: string[];
+  suggestedCategory?: string;
+}
+
 export default function Home() {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -13,6 +20,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [totalResults, setTotalResults] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
+  const [enhancedSearch, setEnhancedSearch] = useState<EnhancedSearch | null>(null);
 
   // 최신 논문 로드 (초기 로드)
   useEffect(() => {
@@ -39,6 +47,7 @@ export default function Home() {
     setSearchQuery(query);
     setIsLoading(true);
     setHasSearched(true);
+    setEnhancedSearch(null);
 
     try {
       const params = new URLSearchParams({
@@ -55,6 +64,9 @@ export default function Home() {
         const data = await response.json();
         setPapers(data.papers);
         setTotalResults(data.total);
+        if (data.enhanced) {
+          setEnhancedSearch(data.enhanced);
+        }
       }
     } catch (error) {
       console.error('검색 오류:', error);
@@ -74,6 +86,7 @@ export default function Home() {
 
   const handleSearchWithCategory = async (query: string, category: string | null) => {
     setIsLoading(true);
+    setEnhancedSearch(null);
 
     try {
       const params = new URLSearchParams({
@@ -90,6 +103,9 @@ export default function Home() {
         const data = await response.json();
         setPapers(data.papers);
         setTotalResults(data.total);
+        if (data.enhanced) {
+          setEnhancedSearch(data.enhanced);
+        }
       }
     } catch (error) {
       console.error('검색 오류:', error);
@@ -118,14 +134,33 @@ export default function Home() {
       {/* 결과 섹션 */}
       <div>
         {hasSearched && !isLoading && (
-          <p className="text-sm text-gray-600 mb-4">
-            {searchQuery && (
-              <>
-                <span className="font-medium">&quot;{searchQuery}&quot;</span> 검색 결과:{' '}
-              </>
+          <div className="mb-4 space-y-2">
+            <p className="text-sm text-gray-600">
+              {searchQuery && (
+                <>
+                  <span className="font-medium">&quot;{searchQuery}&quot;</span> 검색 결과:{' '}
+                </>
+              )}
+              <span className="font-semibold">{totalResults.toLocaleString()}</span>개의 논문
+            </p>
+
+            {/* AI 검색 최적화 정보 */}
+            {enhancedSearch && enhancedSearch.originalQuery !== enhancedSearch.optimizedQuery && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  AI 최적화
+                </span>
+                {enhancedSearch.keywords.slice(0, 4).map((keyword, i) => (
+                  <span key={i} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full">
+                    {keyword}
+                  </span>
+                ))}
+              </div>
             )}
-            <span className="font-semibold">{totalResults.toLocaleString()}</span>개의 논문
-          </p>
+          </div>
         )}
 
         {!hasSearched && !isLoading && papers.length > 0 && (

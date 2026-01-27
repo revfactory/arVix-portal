@@ -25,7 +25,7 @@ export default function SearchBar({ onSearch, isLoading = false, initialQuery = 
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="논문 검색... (예: transformer, attention mechanism)"
+          placeholder="자연어로 검색하세요 (예: 딥러닝 이미지 분류, transformer 모델)"
           className="w-full px-4 py-3 pl-12 pr-24 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
           disabled={isLoading}
         />

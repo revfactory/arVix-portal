@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchArxiv, getPaperById, getLatestPapers } from '@/lib/arxiv';
+import { enhanceSearchQuery } from '@/lib/search';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -35,13 +36,37 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category') || undefined;
     const maxResults = parseInt(searchParams.get('maxResults') || '20', 10);
     const start = parseInt(searchParams.get('start') || '0', 10);
+    const enhance = searchParams.get('enhance') !== 'false'; // 기본값 true
 
     if (!query) {
       return NextResponse.json({ error: '검색어가 필요합니다' }, { status: 400 });
     }
 
-    const result = await searchArxiv({ query, category, maxResults, start });
-    return NextResponse.json(result);
+    // AI 검색어 최적화
+    let searchQuery = query;
+    let enhancedData = null;
+
+    if (enhance) {
+      enhancedData = await enhanceSearchQuery(query);
+      searchQuery = enhancedData.searchQuery;
+    }
+
+    const result = await searchArxiv({
+      query: searchQuery,
+      category: category || enhancedData?.suggestedCategory,
+      maxResults,
+      start,
+    });
+
+    return NextResponse.json({
+      ...result,
+      enhanced: enhancedData ? {
+        originalQuery: enhancedData.originalQuery,
+        optimizedQuery: enhancedData.searchQuery,
+        keywords: enhancedData.englishKeywords,
+        suggestedCategory: enhancedData.suggestedCategory,
+      } : null,
+    });
   } catch (error) {
     console.error('arXiv API 오류:', error);
     return NextResponse.json(
