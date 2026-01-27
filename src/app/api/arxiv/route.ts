@@ -56,6 +56,10 @@ export async function GET(request: NextRequest) {
       category: category || enhancedData?.suggestedCategory,
       maxResults,
       start,
+      dateRange: enhancedData?.dateFilter ? {
+        startDate: enhancedData.dateFilter.startDate,
+        endDate: enhancedData.dateFilter.endDate,
+      } : undefined,
     });
 
     return NextResponse.json({
@@ -65,6 +69,7 @@ export async function GET(request: NextRequest) {
         optimizedQuery: enhancedData.searchQuery,
         keywords: enhancedData.englishKeywords,
         suggestedCategory: enhancedData.suggestedCategory,
+        dateFilter: enhancedData.dateFilter,
       } : null,
     });
   } catch (error) {

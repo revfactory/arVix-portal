@@ -36,6 +36,10 @@ export interface SearchParams {
   category?: string;
   maxResults?: number;
   start?: number;
+  dateRange?: {
+    startDate: string; // YYYYMMDD
+    endDate: string;   // YYYYMMDD
+  };
 }
 
 export const ARXIV_CATEGORIES = [

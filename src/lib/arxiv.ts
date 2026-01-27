@@ -50,13 +50,19 @@ function parseEntry(entry: ArxivEntry): Paper {
 
 // arXiv API 검색
 export async function searchArxiv(params: SearchParams): Promise<{ papers: Paper[]; total: number }> {
-  const { query, category, maxResults = 20, start = 0 } = params;
+  const { query, category, maxResults = 20, start = 0, dateRange } = params;
 
   let searchQuery = query;
 
   // 카테고리 필터 추가
   if (category) {
     searchQuery = `cat:${category} AND (${query})`;
+  }
+
+  // 날짜 필터 추가
+  if (dateRange) {
+    const dateQuery = `submittedDate:[${dateRange.startDate} TO ${dateRange.endDate}]`;
+    searchQuery = `${dateQuery} AND (${searchQuery})`;
   }
 
   const url = new URL(ARXIV_API_BASE);
