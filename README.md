@@ -5,11 +5,15 @@ arXiv 논문을 검색하고, AI로 분석하며, 북마크를 관리할 수 있
 ## 주요 기능
 
 - **논문 검색**: arXiv API를 통한 논문 검색 및 카테고리 필터링
-- **논문 상세 보기**: 제목, 저자, 초록, 카테고리, PDF 링크 제공
+- **검색 결과 더보기**: 페이지네이션을 통한 추가 결과 로드
+- **유사 논문 검색**: Gemini AI가 논문 내용을 분석하여 유사한 논문 검색 키워드 생성
+- **논문 상세 보기**: 제목, 저자, 초록, 카테고리, PDF 링크, arXiv ID 제공
+- **한글 카테고리 태그**: 100개 이상의 arXiv 카테고리를 한글로 표시
 - **초록 번역**: Gemini AI를 활용한 영문 초록 한국어 번역
 - **AI 분석**: 논문 요약, 핵심 포인트 추출, 연구 의의 분석 (DB 캐싱)
 - **인포그래픽 생성**: AI 기반 논문 시각화 이미지 생성 (Supabase Storage)
 - **북마크 관리**: 브라우저 localStorage 기반 개인화 북마크
+- **버킷 (읽기 목록)**: 관심 논문을 버킷에 담아 관리
 - **결과 캐싱**: 번역, 분석, 인포그래픽 결과를 DB에 저장하여 재사용
 
 ## 기술 스택
@@ -92,10 +96,11 @@ arVix-portal/
 │   │   ├── paper/[id]/page.tsx     # 논문 상세 페이지
 │   │   ├── bookmarks/page.tsx      # 북마크 목록 페이지
 │   │   └── api/
-│   │       ├── arxiv/route.ts      # arXiv API 프록시
-│   │       ├── analyze/route.ts    # AI 분석 API (캐싱)
-│   │       ├── translate/route.ts  # 번역 API (캐싱)
+│   │       ├── arxiv/route.ts       # arXiv API 프록시
+│   │       ├── analyze/route.ts     # AI 분석 API (캐싱)
+│   │       ├── translate/route.ts   # 번역 API (캐싱)
 │   │       ├── infographic/route.ts # 인포그래픽 생성 API
+│   │       ├── similar-search/route.ts # 유사 논문 검색어 생성 API
 │   │       └── paper-cache/route.ts # 캐시 조회 API
 │   ├── components/
 │   │   ├── Navigation.tsx          # 네비게이션 바
@@ -104,6 +109,7 @@ arVix-portal/
 │   │   ├── PaperList.tsx           # 논문 목록 (그리드)
 │   │   ├── CategoryFilter.tsx      # 카테고리 필터
 │   │   ├── BookmarkButton.tsx      # 북마크 버튼
+│   │   ├── BucketButton.tsx        # 버킷(읽기 목록) 버튼
 │   │   ├── AIAnalysis.tsx          # AI 분석 결과
 │   │   ├── InfographicGenerator.tsx # 인포그래픽 생성기
 │   │   └── MarkdownView.tsx        # 마크다운 렌더러
@@ -111,6 +117,7 @@ arVix-portal/
 │   │   ├── arxiv.ts                # arXiv API 유틸리티
 │   │   ├── ai.ts                   # AI 분석 유틸리티
 │   │   ├── bookmarks.ts            # 북마크 관리 (localStorage)
+│   │   ├── bucket.ts               # 버킷(읽기 목록) 관리 (localStorage)
 │   │   ├── db.ts                   # PostgreSQL 연결 및 캐시 함수
 │   │   └── storage.ts              # Supabase Storage 유틸리티
 │   └── types/
