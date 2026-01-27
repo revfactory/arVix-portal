@@ -59,18 +59,22 @@ export async function searchArxiv(params: SearchParams): Promise<{ papers: Paper
     searchQuery = `cat:${category} AND (${query})`;
   }
 
-  // 날짜 필터 추가
+  // 날짜 필터 추가 (arXiv API 형식: YYYYMMDDHHMM)
   if (dateRange) {
-    const dateQuery = `submittedDate:[${dateRange.startDate} TO ${dateRange.endDate}]`;
+    const startDateTime = `${dateRange.startDate}0000`;
+    const endDateTime = `${dateRange.endDate}2359`;
+    const dateQuery = `submittedDate:[${startDateTime} TO ${endDateTime}]`;
     searchQuery = `${dateQuery} AND (${searchQuery})`;
   }
 
   const url = new URL(ARXIV_API_BASE);
-  url.searchParams.set('search_query', `all:${searchQuery}`);
+  url.searchParams.set('search_query', searchQuery);
   url.searchParams.set('start', start.toString());
   url.searchParams.set('max_results', maxResults.toString());
   url.searchParams.set('sortBy', 'submittedDate');
   url.searchParams.set('sortOrder', 'descending');
+
+  console.log('arXiv 검색 쿼리:', url.toString());
 
   const response = await fetch(url.toString());
 
@@ -82,12 +86,33 @@ export async function searchArxiv(params: SearchParams): Promise<{ papers: Paper
   const result: ArxivResponse = await parseStringPromise(xml);
 
   const entries = result.feed.entry || [];
-  const papers = entries.map(parseEntry);
+  let papers = entries.map(parseEntry);
+
+  // 날짜 범위로 결과 필터링 (arXiv API 날짜 필터가 정확하지 않을 수 있음)
+  if (dateRange) {
+    const startDate = new Date(
+      parseInt(dateRange.startDate.slice(0, 4)),
+      parseInt(dateRange.startDate.slice(4, 6)) - 1,
+      parseInt(dateRange.startDate.slice(6, 8)),
+      0, 0, 0
+    );
+    const endDate = new Date(
+      parseInt(dateRange.endDate.slice(0, 4)),
+      parseInt(dateRange.endDate.slice(4, 6)) - 1,
+      parseInt(dateRange.endDate.slice(6, 8)),
+      23, 59, 59
+    );
+
+    papers = papers.filter(paper => {
+      const paperDate = new Date(paper.publishedAt);
+      return paperDate >= startDate && paperDate <= endDate;
+    });
+  }
 
   const totalStr = result.feed['opensearch:totalResults']?.[0];
   const total = totalStr ? parseInt(typeof totalStr === 'object' ? totalStr._ : totalStr, 10) : papers.length;
 
-  return { papers, total };
+  return { papers, total: dateRange ? papers.length : total };
 }
 
 // 특정 논문 조회 (arXiv ID로)
