@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Paper } from '@/types/paper';
 import BookmarkButton from './BookmarkButton';
+import BucketButton from './BucketButton';
 
 interface PaperCardProps {
   paper: Paper;
@@ -81,7 +82,10 @@ export default function PaperCard({ paper }: PaperCardProps) {
             PDF
           </a>
         </div>
-        <BookmarkButton paper={paper} size="sm" />
+        <div className="flex items-center gap-1">
+          <BucketButton paper={paper} size="sm" />
+          <BookmarkButton paper={paper} size="sm" />
+        </div>
       </div>
     </div>
   );
