@@ -546,7 +546,7 @@ export default function PaperDetailPage({ params }: PageProps) {
                 </svg>
                 <p className="text-gray-600 mb-4">논문 내용을 시각화한 인포그래픽을 생성할 수 있습니다</p>
                 <button
-                  onClick={generateInfographic}
+                  onClick={() => generateInfographic()}
                   className="inline-flex items-center gap-2 px-6 py-2.5 bg-amber-500 text-white font-medium rounded-lg hover:bg-amber-600 transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
