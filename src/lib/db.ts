@@ -17,7 +17,9 @@ export interface PaperCache {
   analysis: {
     summary: string;
     keyPoints: string[];
-    significance: string;
+    methodology: string;
+    contributions: string[];
+    limitations: string[];
   } | null;
   analyzed_at: string | null;
   infographic_url: string | null;
@@ -238,7 +240,7 @@ export async function saveTranslation(arxivId: string, translation: string): Pro
 // AI 분석 결과 저장
 export async function saveAnalysis(
   arxivId: string,
-  analysis: { summary: string; keyPoints: string[]; significance: string }
+  analysis: { summary: string; keyPoints: string[]; methodology: string; contributions: string[]; limitations: string[] }
 ): Promise<boolean> {
   const client = await pool.connect();
   try {
