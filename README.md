@@ -7,9 +7,10 @@ arXiv 논문을 검색하고, AI로 분석하며, 북마크를 관리할 수 있
 - **논문 검색**: arXiv API를 통한 논문 검색 및 카테고리 필터링
 - **논문 상세 보기**: 제목, 저자, 초록, 카테고리, PDF 링크 제공
 - **초록 번역**: Gemini AI를 활용한 영문 초록 한국어 번역
-- **AI 분석**: 논문 요약, 핵심 포인트 추출, 연구 의의 분석
-- **인포그래픽 생성**: AI 기반 논문 시각화 이미지 생성
+- **AI 분석**: 논문 요약, 핵심 포인트 추출, 연구 의의 분석 (DB 캐싱)
+- **인포그래픽 생성**: AI 기반 논문 시각화 이미지 생성 (Supabase Storage)
 - **북마크 관리**: 브라우저 localStorage 기반 개인화 북마크
+- **결과 캐싱**: 번역, 분석, 인포그래픽 결과를 DB에 저장하여 재사용
 
 ## 기술 스택
 
@@ -19,7 +20,9 @@ arXiv 논문을 검색하고, AI로 분석하며, 북마크를 관리할 수 있
 - **AI**: Google Gemini API
   - `gemini-3-flash-preview`: 텍스트 분석 및 번역
   - `gemini-3-pro-image-preview`: 인포그래픽 생성
-- **저장소**: 브라우저 localStorage
+- **데이터베이스**: PostgreSQL (번역/분석 캐싱)
+- **스토리지**: Supabase Storage (인포그래픽 이미지)
+- **북마크 저장소**: 브라우저 localStorage
 
 ## 시작하기
 
@@ -50,14 +53,24 @@ pip install google-genai pillow
 ```env
 GEMINI_API_KEY=your_gemini_api_key
 DATABASE_URL=postgresql://user:password@host:port/database
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 | 변수 | 필수 | 설명 |
 |------|------|------|
 | `GEMINI_API_KEY` | O | Google Gemini API 키 |
-| `DATABASE_URL` | - | PostgreSQL 연결 문자열 (DB 사용 시) |
+| `DATABASE_URL` | O | PostgreSQL 연결 문자열 (번역/분석 캐싱용) |
+| `NEXT_PUBLIC_SUPABASE_URL` | O | Supabase 프로젝트 URL (스토리지용) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | O | Supabase Anonymous 키 |
 
-> **참고**: 북마크는 기본적으로 브라우저 localStorage에 저장됩니다. PostgreSQL을 사용하려면 `src/lib/bookmarks.ts`를 `src/lib/db.ts`로 교체하세요.
+### Supabase 설정
+
+1. [Supabase](https://supabase.com)에서 프로젝트 생성
+2. SQL Editor에서 `supabase-schema.sql` 실행
+3. Storage에서 `infographics` 버킷 생성 (Public 체크)
+
+> **참고**: 북마크는 브라우저 localStorage에 저장됩니다. 번역, AI 분석, 인포그래픽은 PostgreSQL에 캐싱되어 재사용됩니다.
 
 ### 실행
 
@@ -80,9 +93,10 @@ arVix-portal/
 │   │   ├── bookmarks/page.tsx      # 북마크 목록 페이지
 │   │   └── api/
 │   │       ├── arxiv/route.ts      # arXiv API 프록시
-│   │       ├── analyze/route.ts    # AI 분석 API
-│   │       ├── translate/route.ts  # 번역 API
-│   │       └── infographic/route.ts # 인포그래픽 생성 API
+│   │       ├── analyze/route.ts    # AI 분석 API (캐싱)
+│   │       ├── translate/route.ts  # 번역 API (캐싱)
+│   │       ├── infographic/route.ts # 인포그래픽 생성 API
+│   │       └── paper-cache/route.ts # 캐시 조회 API
 │   ├── components/
 │   │   ├── Navigation.tsx          # 네비게이션 바
 │   │   ├── SearchBar.tsx           # 검색 입력
@@ -96,7 +110,9 @@ arVix-portal/
 │   ├── lib/
 │   │   ├── arxiv.ts                # arXiv API 유틸리티
 │   │   ├── ai.ts                   # AI 분석 유틸리티
-│   │   └── bookmarks.ts            # 북마크 관리 (localStorage)
+│   │   ├── bookmarks.ts            # 북마크 관리 (localStorage)
+│   │   ├── db.ts                   # PostgreSQL 연결 및 캐시 함수
+│   │   └── storage.ts              # Supabase Storage 유틸리티
 │   └── types/
 │       └── paper.ts                # 타입 정의
 ├── scripts/

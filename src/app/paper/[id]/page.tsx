@@ -26,6 +26,28 @@ export default function PaperDetailPage({ params }: PageProps) {
     loadPaper();
   }, [id]);
 
+  // 캐시된 번역 로드
+  useEffect(() => {
+    if (paper?.arxivId) {
+      loadCachedTranslation();
+    }
+  }, [paper?.arxivId]);
+
+  const loadCachedTranslation = async () => {
+    if (!paper) return;
+    try {
+      const response = await fetch(`/api/paper-cache?arxivId=${encodeURIComponent(paper.arxivId)}`);
+      if (response.ok) {
+        const cache = await response.json();
+        if (cache.translation) {
+          setTranslation(cache.translation);
+        }
+      }
+    } catch (err) {
+      console.error('캐시 로드 오류:', err);
+    }
+  };
+
   const loadPaper = async () => {
     setIsLoading(true);
     setError(null);
@@ -61,7 +83,7 @@ export default function PaperDetailPage({ params }: PageProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: paper.abstract }),
+        body: JSON.stringify({ text: paper.abstract, arxivId: paper.arxivId }),
       });
 
       if (!response.ok) {
@@ -333,7 +355,7 @@ export default function PaperDetailPage({ params }: PageProps) {
       </div>
 
       {/* AI 분석 */}
-      <AIAnalysis title={paper.title} abstract={paper.abstract} />
+      <AIAnalysis title={paper.title} abstract={paper.abstract} arxivId={paper.arxivId} />
     </div>
   );
 }

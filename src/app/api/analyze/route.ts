@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { analyzePaper, generateQuickSummary } from '@/lib/ai';
+import { getPaperCache, saveAnalysis } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, abstract, mode = 'full' } = body;
+    const { title, abstract, arxivId, mode = 'full' } = body;
 
     if (!abstract) {
       return NextResponse.json({ error: '초록이 필요합니다' }, { status: 400 });
@@ -16,13 +17,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ summary });
     }
 
-    // 전체 분석
+    // 전체 분석 - 캐시 확인
+    if (arxivId) {
+      const cache = await getPaperCache(arxivId);
+      if (cache?.analysis) {
+        return NextResponse.json({ ...cache.analysis, cached: true });
+      }
+    }
+
     if (!title) {
       return NextResponse.json({ error: '제목이 필요합니다' }, { status: 400 });
     }
 
     const analysis = await analyzePaper(title, abstract);
-    return NextResponse.json(analysis);
+
+    // 분석 결과 캐시에 저장
+    if (arxivId && analysis) {
+      await saveAnalysis(arxivId, analysis);
+    }
+
+    return NextResponse.json({ ...analysis, cached: false });
   } catch (error) {
     console.error('AI 분석 API 오류:', error);
 

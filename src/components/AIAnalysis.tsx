@@ -1,27 +1,53 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { AIAnalysis as AIAnalysisType } from '@/types/paper';
 
 interface AIAnalysisProps {
   title: string;
   abstract: string;
+  arxivId: string;
 }
 
-export default function AIAnalysis({ title, abstract }: AIAnalysisProps) {
+export default function AIAnalysis({ title, abstract, arxivId }: AIAnalysisProps) {
   const [analysis, setAnalysis] = useState<AIAnalysisType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCached, setIsCached] = useState(false);
 
   // 인포그래픽 상태
   const [infographicUrl, setInfographicUrl] = useState<string | null>(null);
   const [isGeneratingInfographic, setIsGeneratingInfographic] = useState(false);
   const [infographicError, setInfographicError] = useState<string | null>(null);
 
+  // 캐시된 데이터 로드
+  useEffect(() => {
+    loadCachedData();
+  }, [arxivId]);
+
+  const loadCachedData = async () => {
+    try {
+      const response = await fetch(`/api/paper-cache?arxivId=${encodeURIComponent(arxivId)}`);
+      if (response.ok) {
+        const cache = await response.json();
+        if (cache.analysis) {
+          setAnalysis(cache.analysis);
+          setIsCached(true);
+        }
+        if (cache.infographic_url) {
+          setInfographicUrl(cache.infographic_url);
+        }
+      }
+    } catch (err) {
+      console.error('캐시 로드 오류:', err);
+    }
+  };
+
   const analyzeWithAI = async () => {
     setIsLoading(true);
     setError(null);
+    setIsCached(false);
 
     try {
       const response = await fetch('/api/analyze', {
@@ -29,7 +55,7 @@ export default function AIAnalysis({ title, abstract }: AIAnalysisProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title, abstract, mode: 'full' }),
+        body: JSON.stringify({ title, abstract, arxivId, mode: 'full' }),
       });
 
       if (!response.ok) {
@@ -38,6 +64,9 @@ export default function AIAnalysis({ title, abstract }: AIAnalysisProps) {
 
       const data = await response.json();
       setAnalysis(data);
+      if (data.cached) {
+        setIsCached(true);
+      }
     } catch (err) {
       setError('AI 분석 중 오류가 발생했습니다. 다시 시도해주세요.');
       console.error('AI 분석 오류:', err);
@@ -63,6 +92,7 @@ export default function AIAnalysis({ title, abstract }: AIAnalysisProps) {
           summary: analysis.summary,
           keyPoints: analysis.keyPoints,
           methodology: analysis.methodology,
+          arxivId,
         }),
       });
 
@@ -168,21 +198,28 @@ export default function AIAnalysis({ title, abstract }: AIAnalysisProps) {
     <div className="space-y-4">
       {/* AI 분석 결과 */}
       <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border border-purple-100">
-        <div className="flex items-center gap-3 mb-4">
-          <svg
-            className="w-6 h-6 text-purple-600"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-            />
-          </svg>
-          <h3 className="text-lg font-semibold text-gray-900">AI 분석 결과</h3>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <svg
+              className="w-6 h-6 text-purple-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+              />
+            </svg>
+            <h3 className="text-lg font-semibold text-gray-900">AI 분석 결과</h3>
+          </div>
+          {isCached && (
+            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded">
+              저장됨
+            </span>
+          )}
         </div>
 
         <div className="space-y-4">

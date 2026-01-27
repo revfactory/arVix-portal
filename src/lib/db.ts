@@ -8,6 +8,24 @@ const pool = new Pool({
   },
 });
 
+// 논문 캐시 타입 정의
+export interface PaperCache {
+  id: string;
+  arxiv_id: string;
+  translation: string | null;
+  translated_at: string | null;
+  analysis: {
+    summary: string;
+    keyPoints: string[];
+    significance: string;
+  } | null;
+  analyzed_at: string | null;
+  infographic_url: string | null;
+  infographic_created_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // 테이블 초기화 (앱 시작 시 한 번 실행)
 export async function initDatabase() {
   const client = await pool.connect();
@@ -144,6 +162,116 @@ export async function updateAISummary(arxivId: string, aiSummary: string): Promi
     return (result.rowCount ?? 0) > 0;
   } catch (error) {
     console.error('AI 요약 업데이트 오류:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+// =============================================
+// 논문 캐시 관련 함수들
+// =============================================
+
+// 논문 캐시 테이블 초기화
+export async function initPaperCacheTable() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS paper_cache (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        arxiv_id TEXT NOT NULL UNIQUE,
+        translation TEXT,
+        translated_at TIMESTAMP,
+        analysis JSONB,
+        analyzed_at TIMESTAMP,
+        infographic_url TEXT,
+        infographic_created_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_paper_cache_arxiv_id ON paper_cache(arxiv_id)
+    `);
+  } finally {
+    client.release();
+  }
+}
+
+// 논문 캐시 조회
+export async function getPaperCache(arxivId: string): Promise<PaperCache | null> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT * FROM paper_cache WHERE arxiv_id = $1',
+      [arxivId]
+    );
+    return result.rows[0] || null;
+  } catch (error) {
+    console.error('논문 캐시 조회 오류:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+// 번역 저장
+export async function saveTranslation(arxivId: string, translation: string): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO paper_cache (arxiv_id, translation, translated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (arxiv_id)
+       DO UPDATE SET translation = $2, translated_at = NOW()`,
+      [arxivId, translation]
+    );
+    return true;
+  } catch (error) {
+    console.error('번역 저장 오류:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+// AI 분석 결과 저장
+export async function saveAnalysis(
+  arxivId: string,
+  analysis: { summary: string; keyPoints: string[]; significance: string }
+): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO paper_cache (arxiv_id, analysis, analyzed_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (arxiv_id)
+       DO UPDATE SET analysis = $2, analyzed_at = NOW()`,
+      [arxivId, JSON.stringify(analysis)]
+    );
+    return true;
+  } catch (error) {
+    console.error('분석 결과 저장 오류:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+// 인포그래픽 URL 저장
+export async function saveInfographicUrl(arxivId: string, url: string): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO paper_cache (arxiv_id, infographic_url, infographic_created_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (arxiv_id)
+       DO UPDATE SET infographic_url = $2, infographic_created_at = NOW()`,
+      [arxivId, url]
+    );
+    return true;
+  } catch (error) {
+    console.error('인포그래픽 URL 저장 오류:', error);
     return false;
   } finally {
     client.release();

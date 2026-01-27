@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getPaperCache, saveTranslation } from '@/lib/db';
 
 const apiKey = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(apiKey);
@@ -7,10 +8,18 @@ const genAI = new GoogleGenerativeAI(apiKey);
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text } = body;
+    const { text, arxivId } = body;
 
     if (!text) {
       return NextResponse.json({ error: '번역할 텍스트가 필요합니다' }, { status: 400 });
+    }
+
+    // 캐시된 번역이 있는지 확인
+    if (arxivId) {
+      const cache = await getPaperCache(arxivId);
+      if (cache?.translation) {
+        return NextResponse.json({ translation: cache.translation, cached: true });
+      }
     }
 
     if (!apiKey) {
@@ -36,7 +45,12 @@ ${text}
     const response = await result.response;
     const translatedText = response.text().trim();
 
-    return NextResponse.json({ translation: translatedText });
+    // 번역 결과 캐시에 저장
+    if (arxivId) {
+      await saveTranslation(arxivId, translatedText);
+    }
+
+    return NextResponse.json({ translation: translatedText, cached: false });
   } catch (error) {
     console.error('번역 오류:', error);
     const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
