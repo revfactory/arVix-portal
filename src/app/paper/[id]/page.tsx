@@ -22,18 +22,22 @@ export default function PaperDetailPage({ params }: PageProps) {
   const [isTranslating, setIsTranslating] = useState(false);
   const [showOriginal, setShowOriginal] = useState(true);
 
+  // 인포그래픽 상태
+  const [infographicUrl, setInfographicUrl] = useState<string | null>(null);
+  const [isGeneratingInfographic, setIsGeneratingInfographic] = useState(false);
+
   useEffect(() => {
     loadPaper();
   }, [id]);
 
-  // 캐시된 번역 로드
+  // 캐시된 데이터 로드
   useEffect(() => {
     if (paper?.arxivId) {
-      loadCachedTranslation();
+      loadCachedData();
     }
   }, [paper?.arxivId]);
 
-  const loadCachedTranslation = async () => {
+  const loadCachedData = async () => {
     if (!paper) return;
     try {
       const response = await fetch(`/api/paper-cache?arxivId=${encodeURIComponent(paper.arxivId)}`);
@@ -41,6 +45,9 @@ export default function PaperDetailPage({ params }: PageProps) {
         const cache = await response.json();
         if (cache.translation) {
           setTranslation(cache.translation);
+        }
+        if (cache.infographic_url) {
+          setInfographicUrl(cache.infographic_url);
         }
       }
     } catch (err) {
@@ -97,6 +104,41 @@ export default function PaperDetailPage({ params }: PageProps) {
       console.error('번역 오류:', err);
     } finally {
       setIsTranslating(false);
+    }
+  };
+
+  const generateInfographic = async () => {
+    if (!paper || infographicUrl || isGeneratingInfographic) return;
+
+    setIsGeneratingInfographic(true);
+
+    try {
+      const response = await fetch('/api/infographic', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: paper.title,
+          summary: paper.abstract.slice(0, 500),
+          keyPoints: [paper.categories.join(', '), `저자: ${paper.authors.slice(0, 3).join(', ')}`],
+          methodology: '',
+          arxivId: paper.arxivId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('인포그래픽 생성 실패');
+      }
+
+      const data = await response.json();
+      if (data.imageUrl) {
+        setInfographicUrl(data.imageUrl);
+      }
+    } catch (err) {
+      console.error('인포그래픽 생성 오류:', err);
+    } finally {
+      setIsGeneratingInfographic(false);
     }
   };
 
@@ -357,6 +399,84 @@ export default function PaperDetailPage({ params }: PageProps) {
 
       {/* AI 분석 */}
       <AIAnalysis title={paper.title} abstract={paper.abstract} arxivId={paper.arxivId} />
+
+      {/* 인포그래픽 섹션 */}
+      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-6 border border-amber-200">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <svg
+              className="w-6 h-6 text-amber-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">인포그래픽</h3>
+              <p className="text-sm text-gray-600">논문 내용을 시각화한 이미지</p>
+            </div>
+          </div>
+          {infographicUrl && (
+            <a
+              href={infographicUrl}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              다운로드
+            </a>
+          )}
+        </div>
+
+        {infographicUrl ? (
+          <div className="rounded-lg overflow-hidden border border-amber-200 bg-white">
+            <img
+              src={infographicUrl}
+              alt="논문 인포그래픽"
+              className="w-full h-auto"
+            />
+          </div>
+        ) : (
+          <div className="text-center py-10">
+            {isGeneratingInfographic ? (
+              <>
+                <svg className="animate-spin w-10 h-10 text-amber-600 mx-auto mb-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <p className="text-gray-700 font-medium mb-1">인포그래픽 생성 중...</p>
+                <p className="text-sm text-gray-500">AI가 논문 내용을 시각화하고 있습니다 (30초~1분 소요)</p>
+              </>
+            ) : (
+              <>
+                <svg className="w-12 h-12 text-amber-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-gray-600 mb-4">논문 내용을 시각화한 인포그래픽을 생성할 수 있습니다</p>
+                <button
+                  onClick={generateInfographic}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-amber-500 text-white font-medium rounded-lg hover:bg-amber-600 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  인포그래픽 생성
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
