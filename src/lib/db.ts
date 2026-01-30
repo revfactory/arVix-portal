@@ -261,11 +261,23 @@ export async function initPaperCacheTable() {
       UPDATE paper_cache SET source_id = arxiv_id WHERE source_id IS NULL AND arxiv_id IS NOT NULL;
     `);
 
+    // Drop old partial index if exists and create full unique constraint
     await client.query(`
       DO $$
       BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_paper_cache_source_id') THEN
-          CREATE UNIQUE INDEX idx_paper_cache_source_id ON paper_cache(source, source_id) WHERE source_id IS NOT NULL;
+        -- Drop old partial index if exists
+        IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_paper_cache_source_id') THEN
+          DROP INDEX IF EXISTS idx_paper_cache_source_id;
+        END IF;
+
+        -- Create unique constraint on (source, source_id)
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'unique_paper_cache_source_id'
+        ) THEN
+          ALTER TABLE paper_cache
+          ADD CONSTRAINT unique_paper_cache_source_id
+          UNIQUE (source, source_id);
         END IF;
       END $$;
     `);
@@ -305,6 +317,7 @@ export async function saveTranslation(sourceOrArxivId: PaperSource | string, sou
   const client = await pool.connect();
   try {
     if (translation !== undefined) {
+      console.log(`[DB] Saving translation: source=${sourceOrArxivId}, sourceId=${sourceIdOrTranslation}`);
       await client.query(
         `INSERT INTO paper_cache (source, source_id, translation, translated_at)
          VALUES ($1, $2, $3, NOW())
@@ -312,7 +325,9 @@ export async function saveTranslation(sourceOrArxivId: PaperSource | string, sou
          DO UPDATE SET translation = $3, translated_at = NOW()`,
         [sourceOrArxivId, sourceIdOrTranslation, translation]
       );
+      console.log(`[DB] Translation saved successfully`);
     } else {
+      console.log(`[DB] Saving translation: source=arxiv, sourceId=${sourceOrArxivId}`);
       await client.query(
         `INSERT INTO paper_cache (source, source_id, arxiv_id, translation, translated_at)
          VALUES ($1, $2, $2, $3, NOW())
@@ -320,9 +335,11 @@ export async function saveTranslation(sourceOrArxivId: PaperSource | string, sou
          DO UPDATE SET translation = $3, translated_at = NOW()`,
         ['arxiv', sourceOrArxivId, sourceIdOrTranslation]
       );
+      console.log(`[DB] Translation saved successfully`);
     }
     return true;
   } catch (error) {
+    console.error(`[DB] Failed to save translation:`, error);
     return false;
   } finally {
     client.release();
@@ -346,6 +363,7 @@ export async function saveAnalysis(
   const client = await pool.connect();
   try {
     if (analysis !== undefined) {
+      console.log(`[DB] Saving analysis: source=${sourceOrArxivId}, sourceId=${sourceIdOrAnalysis}`);
       await client.query(
         `INSERT INTO paper_cache (source, source_id, analysis, analyzed_at)
          VALUES ($1, $2, $3, NOW())
@@ -353,7 +371,9 @@ export async function saveAnalysis(
          DO UPDATE SET analysis = $3, analyzed_at = NOW()`,
         [sourceOrArxivId, sourceIdOrAnalysis, JSON.stringify(analysis)]
       );
+      console.log(`[DB] Analysis saved successfully`);
     } else {
+      console.log(`[DB] Saving analysis: source=arxiv, sourceId=${sourceOrArxivId}`);
       await client.query(
         `INSERT INTO paper_cache (source, source_id, arxiv_id, analysis, analyzed_at)
          VALUES ($1, $2, $2, $3, NOW())
@@ -361,9 +381,11 @@ export async function saveAnalysis(
          DO UPDATE SET analysis = $3, analyzed_at = NOW()`,
         ['arxiv', sourceOrArxivId, JSON.stringify(sourceIdOrAnalysis)]
       );
+      console.log(`[DB] Analysis saved successfully`);
     }
     return true;
   } catch (error) {
+    console.error(`[DB] Failed to save analysis:`, error);
     return false;
   } finally {
     client.release();
@@ -376,6 +398,7 @@ export async function saveInfographicUrl(sourceOrArxivId: PaperSource | string, 
   const client = await pool.connect();
   try {
     if (url !== undefined) {
+      console.log(`[DB] Saving infographic URL: source=${sourceOrArxivId}, sourceId=${sourceIdOrUrl}`);
       await client.query(
         `INSERT INTO paper_cache (source, source_id, infographic_url, infographic_created_at)
          VALUES ($1, $2, $3, NOW())
@@ -383,7 +406,9 @@ export async function saveInfographicUrl(sourceOrArxivId: PaperSource | string, 
          DO UPDATE SET infographic_url = $3, infographic_created_at = NOW()`,
         [sourceOrArxivId, sourceIdOrUrl, url]
       );
+      console.log(`[DB] Infographic URL saved successfully`);
     } else {
+      console.log(`[DB] Saving infographic URL: source=arxiv, sourceId=${sourceOrArxivId}`);
       await client.query(
         `INSERT INTO paper_cache (source, source_id, arxiv_id, infographic_url, infographic_created_at)
          VALUES ($1, $2, $2, $3, NOW())
@@ -391,9 +416,11 @@ export async function saveInfographicUrl(sourceOrArxivId: PaperSource | string, 
          DO UPDATE SET infographic_url = $3, infographic_created_at = NOW()`,
         ['arxiv', sourceOrArxivId, sourceIdOrUrl]
       );
+      console.log(`[DB] Infographic URL saved successfully`);
     }
     return true;
   } catch (error) {
+    console.error(`[DB] Failed to save infographic URL:`, error);
     return false;
   } finally {
     client.release();
