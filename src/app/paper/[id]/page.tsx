@@ -7,6 +7,7 @@ import { Paper, getCategoryName } from '@/types/paper';
 import BookmarkButton from '@/components/BookmarkButton';
 import AIAnalysis from '@/components/AIAnalysis';
 import MarkdownView from '@/components/MarkdownView';
+import SourceBadge from '@/components/SourceBadge';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -37,15 +38,16 @@ export default function PaperDetailPage({ params }: PageProps) {
 
   // 캐시된 데이터 로드
   useEffect(() => {
-    if (paper?.arxivId) {
+    if (paper?.sourceId) {
       loadCachedData();
     }
-  }, [paper?.arxivId]);
+  }, [paper?.sourceId]);
 
   const loadCachedData = async () => {
     if (!paper) return;
     try {
-      const response = await fetch(`/api/paper-cache?arxivId=${encodeURIComponent(paper.arxivId)}`);
+      const cacheId = paper.arxivId || paper.sourceId;
+      const response = await fetch(`/api/paper-cache?arxivId=${encodeURIComponent(cacheId)}`);
       if (response.ok) {
         const cache = await response.json();
         if (cache.translation) {
@@ -66,7 +68,14 @@ export default function PaperDetailPage({ params }: PageProps) {
 
     try {
       const decodedId = decodeURIComponent(id);
-      const response = await fetch(`/api/arxiv?action=get&id=${encodeURIComponent(decodedId)}`);
+      let source = 'arxiv';
+      let paperId = decodedId;
+
+      if (decodedId.includes(':')) {
+        [source, paperId] = decodedId.split(':', 2);
+      }
+
+      const response = await fetch(`/api/papers?action=get&source=${source}&id=${encodeURIComponent(paperId)}`);
 
       if (!response.ok) {
         throw new Error('논문을 찾을 수 없습니다');
@@ -95,7 +104,11 @@ export default function PaperDetailPage({ params }: PageProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: paper.abstract, arxivId: paper.arxivId }),
+        body: JSON.stringify({
+          text: paper.abstract,
+          arxivId: paper.arxivId || paper.sourceId,
+          source: paper.source
+        }),
       });
 
       if (!response.ok) {
@@ -128,8 +141,9 @@ export default function PaperDetailPage({ params }: PageProps) {
           title: paper.title,
           summary: paper.abstract.slice(0, 500),
           keyPoints: [paper.categories.join(', '), `저자: ${paper.authors.slice(0, 3).join(', ')}`],
+          source: paper.source,
           methodology: '',
-          arxivId: paper.arxivId,
+          arxivId: paper.arxivId || paper.sourceId,
           forceRegenerate,
         }),
       });
@@ -249,8 +263,13 @@ export default function PaperDetailPage({ params }: PageProps) {
         {/* 제목 및 북마크 */}
         <div className="flex items-start justify-between gap-4">
           <div>
+            <div className="flex items-center gap-2 mb-2">
+              <SourceBadge source={paper.source} size="md" />
+              <span className="text-sm font-mono text-gray-400">
+                {paper.source === 'arxiv' ? `arXiv:${paper.sourceId}` : `ID:${paper.sourceId}`}
+              </span>
+            </div>
             <h1 className="text-2xl font-bold text-gray-900 leading-tight">{paper.title}</h1>
-            <p className="mt-1 text-sm font-mono text-gray-400">arXiv:{paper.arxivId}</p>
           </div>
           <BookmarkButton paper={paper} size="lg" />
         </div>
@@ -458,7 +477,12 @@ export default function PaperDetailPage({ params }: PageProps) {
       </div>
 
       {/* AI 분석 */}
-      <AIAnalysis title={paper.title} abstract={paper.abstract} arxivId={paper.arxivId} />
+      <AIAnalysis
+        title={paper.title}
+        abstract={paper.abstract}
+        arxivId={paper.arxivId || paper.sourceId}
+        source={paper.source}
+      />
 
       {/* 인포그래픽 섹션 */}
       <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-6 border border-amber-200">

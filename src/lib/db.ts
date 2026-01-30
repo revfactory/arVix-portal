@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { Bookmark, Paper } from '@/types/paper';
+import { Bookmark, Paper, PaperSource } from '@/types/paper';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -8,10 +8,11 @@ const pool = new Pool({
   },
 });
 
-// 논문 캐시 타입 정의
 export interface PaperCache {
   id: string;
-  arxiv_id: string;
+  source: string;
+  source_id: string;
+  arxiv_id?: string;
   translation: string | null;
   translated_at: string | null;
   analysis: {
@@ -28,14 +29,15 @@ export interface PaperCache {
   updated_at: string;
 }
 
-// 테이블 초기화 (앱 시작 시 한 번 실행)
 export async function initDatabase() {
   const client = await pool.connect();
   try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS bookmarks (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        arxiv_id TEXT NOT NULL UNIQUE,
+        arxiv_id TEXT,
+        source TEXT DEFAULT 'arxiv',
+        source_id TEXT,
         title TEXT NOT NULL,
         authors TEXT[] NOT NULL,
         abstract TEXT,
@@ -47,29 +49,56 @@ export async function initDatabase() {
       )
     `);
 
-    // 인덱스 생성 (이미 존재하면 무시)
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_bookmarks_arxiv_id ON bookmarks(arxiv_id)
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bookmarks' AND column_name='source') THEN
+          ALTER TABLE bookmarks ADD COLUMN source TEXT DEFAULT 'arxiv';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bookmarks' AND column_name='source_id') THEN
+          ALTER TABLE bookmarks ADD COLUMN source_id TEXT;
+        END IF;
+
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bookmarks' AND column_name='arxiv_id' AND is_nullable='NO') THEN
+          ALTER TABLE bookmarks ALTER COLUMN arxiv_id DROP NOT NULL;
+        END IF;
+      END $$;
     `);
+
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_bookmarks_created_at ON bookmarks(created_at DESC)
+      UPDATE bookmarks SET source_id = arxiv_id WHERE source_id IS NULL AND arxiv_id IS NOT NULL;
+    `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_bookmarks_source_id') THEN
+          CREATE UNIQUE INDEX idx_bookmarks_source_id ON bookmarks(source, source_id) WHERE source_id IS NOT NULL;
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_created_at ON bookmarks(created_at DESC);
     `);
   } finally {
     client.release();
   }
 }
 
-// 북마크 추가
 export async function addBookmark(paper: Paper, aiSummary?: string): Promise<Bookmark | null> {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `INSERT INTO bookmarks (arxiv_id, title, authors, abstract, categories, published_at, pdf_url, ai_summary)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (arxiv_id) DO NOTHING
+      `INSERT INTO bookmarks (source, source_id, arxiv_id, title, authors, abstract, categories, published_at, pdf_url, ai_summary)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (source, source_id) DO NOTHING
        RETURNING *`,
       [
-        paper.arxivId,
+        paper.source,
+        paper.sourceId,
+        paper.arxivId || null,
         paper.title,
         paper.authors,
         paper.abstract,
@@ -81,31 +110,37 @@ export async function addBookmark(paper: Paper, aiSummary?: string): Promise<Boo
     );
     return result.rows[0] || null;
   } catch (error) {
-    console.error('북마크 추가 오류:', error);
     return null;
   } finally {
     client.release();
   }
 }
 
-// 북마크 삭제
-export async function removeBookmark(arxivId: string): Promise<boolean> {
+export async function removeBookmark(source: PaperSource, sourceId: string): Promise<boolean>;
+export async function removeBookmark(arxivId: string): Promise<boolean>;
+export async function removeBookmark(sourceOrArxivId: PaperSource | string, sourceId?: string): Promise<boolean> {
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      'DELETE FROM bookmarks WHERE arxiv_id = $1',
-      [arxivId]
-    );
+    let query: string;
+    let params: string[];
+
+    if (sourceId) {
+      query = 'DELETE FROM bookmarks WHERE source = $1 AND source_id = $2';
+      params = [sourceOrArxivId as string, sourceId];
+    } else {
+      query = 'DELETE FROM bookmarks WHERE arxiv_id = $1 OR (source = $2 AND source_id = $1)';
+      params = [sourceOrArxivId as string, 'arxiv'];
+    }
+
+    const result = await client.query(query, params);
     return (result.rowCount ?? 0) > 0;
   } catch (error) {
-    console.error('북마크 삭제 오류:', error);
     return false;
   } finally {
     client.release();
   }
 }
 
-// 북마크 목록 조회
 export async function getBookmarks(): Promise<Bookmark[]> {
   const client = await pool.connect();
   try {
@@ -114,21 +149,29 @@ export async function getBookmarks(): Promise<Bookmark[]> {
     );
     return result.rows;
   } catch (error) {
-    console.error('북마크 조회 오류:', error);
     return [];
   } finally {
     client.release();
   }
 }
 
-// 특정 논문의 북마크 여부 확인
-export async function isBookmarked(arxivId: string): Promise<boolean> {
+export async function isBookmarked(source: PaperSource, sourceId: string): Promise<boolean>;
+export async function isBookmarked(arxivId: string): Promise<boolean>;
+export async function isBookmarked(sourceOrArxivId: PaperSource | string, sourceId?: string): Promise<boolean> {
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      'SELECT id FROM bookmarks WHERE arxiv_id = $1',
-      [arxivId]
-    );
+    let query: string;
+    let params: string[];
+
+    if (sourceId) {
+      query = 'SELECT id FROM bookmarks WHERE source = $1 AND source_id = $2';
+      params = [sourceOrArxivId as string, sourceId];
+    } else {
+      query = 'SELECT id FROM bookmarks WHERE arxiv_id = $1 OR (source = $2 AND source_id = $1)';
+      params = [sourceOrArxivId as string, 'arxiv'];
+    }
+
+    const result = await client.query(query, params);
     return result.rows.length > 0;
   } catch (error) {
     return false;
@@ -137,13 +180,12 @@ export async function isBookmarked(arxivId: string): Promise<boolean> {
   }
 }
 
-// 특정 논문의 북마크 정보 조회
 export async function getBookmarkByArxivId(arxivId: string): Promise<Bookmark | null> {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT * FROM bookmarks WHERE arxiv_id = $1',
-      [arxivId]
+      'SELECT * FROM bookmarks WHERE arxiv_id = $1 OR (source = $2 AND source_id = $1)',
+      [arxivId, 'arxiv']
     );
     return result.rows[0] || null;
   } catch (error) {
@@ -153,35 +195,40 @@ export async function getBookmarkByArxivId(arxivId: string): Promise<Bookmark | 
   }
 }
 
-// AI 요약 업데이트
-export async function updateAISummary(arxivId: string, aiSummary: string): Promise<boolean> {
+export async function updateAISummary(source: PaperSource, sourceId: string, aiSummary: string): Promise<boolean>;
+export async function updateAISummary(arxivId: string, aiSummary: string): Promise<boolean>;
+export async function updateAISummary(sourceOrArxivId: PaperSource | string, sourceIdOrSummary: string, aiSummary?: string): Promise<boolean> {
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      'UPDATE bookmarks SET ai_summary = $1 WHERE arxiv_id = $2',
-      [aiSummary, arxivId]
-    );
+    let query: string;
+    let params: string[];
+
+    if (aiSummary !== undefined) {
+      query = 'UPDATE bookmarks SET ai_summary = $1 WHERE source = $2 AND source_id = $3';
+      params = [aiSummary, sourceOrArxivId as string, sourceIdOrSummary];
+    } else {
+      query = 'UPDATE bookmarks SET ai_summary = $1 WHERE arxiv_id = $2';
+      params = [sourceIdOrSummary, sourceOrArxivId as string];
+    }
+
+    const result = await client.query(query, params);
     return (result.rowCount ?? 0) > 0;
   } catch (error) {
-    console.error('AI 요약 업데이트 오류:', error);
     return false;
   } finally {
     client.release();
   }
 }
 
-// =============================================
-// 논문 캐시 관련 함수들
-// =============================================
-
-// 논문 캐시 테이블 초기화
 export async function initPaperCacheTable() {
   const client = await pool.connect();
   try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS paper_cache (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        arxiv_id TEXT NOT NULL UNIQUE,
+        arxiv_id TEXT,
+        source TEXT DEFAULT 'arxiv',
+        source_id TEXT,
         translation TEXT,
         translated_at TIMESTAMP,
         analysis JSONB,
@@ -192,88 +239,188 @@ export async function initPaperCacheTable() {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_paper_cache_arxiv_id ON paper_cache(arxiv_id)
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='paper_cache' AND column_name='source') THEN
+          ALTER TABLE paper_cache ADD COLUMN source TEXT DEFAULT 'arxiv';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='paper_cache' AND column_name='source_id') THEN
+          ALTER TABLE paper_cache ADD COLUMN source_id TEXT;
+        END IF;
+
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='paper_cache' AND column_name='arxiv_id' AND is_nullable='NO') THEN
+          ALTER TABLE paper_cache ALTER COLUMN arxiv_id DROP NOT NULL;
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      UPDATE paper_cache SET source_id = arxiv_id WHERE source_id IS NULL AND arxiv_id IS NOT NULL;
+    `);
+
+    // Drop old partial index if exists and create full unique constraint
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Drop old partial index if exists
+        IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_paper_cache_source_id') THEN
+          DROP INDEX IF EXISTS idx_paper_cache_source_id;
+        END IF;
+
+        -- Create unique constraint on (source, source_id)
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'unique_paper_cache_source_id'
+        ) THEN
+          ALTER TABLE paper_cache
+          ADD CONSTRAINT unique_paper_cache_source_id
+          UNIQUE (source, source_id);
+        END IF;
+      END $$;
     `);
   } finally {
     client.release();
   }
 }
 
-// 논문 캐시 조회
-export async function getPaperCache(arxivId: string): Promise<PaperCache | null> {
+export async function getPaperCache(source: PaperSource, sourceId: string): Promise<PaperCache | null>;
+export async function getPaperCache(arxivId: string): Promise<PaperCache | null>;
+export async function getPaperCache(sourceOrArxivId: PaperSource | string, sourceId?: string): Promise<PaperCache | null> {
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      'SELECT * FROM paper_cache WHERE arxiv_id = $1',
-      [arxivId]
-    );
+    let query: string;
+    let params: string[];
+
+    if (sourceId) {
+      query = 'SELECT * FROM paper_cache WHERE source = $1 AND source_id = $2';
+      params = [sourceOrArxivId as string, sourceId];
+    } else {
+      query = 'SELECT * FROM paper_cache WHERE arxiv_id = $1 OR source_id = $1';
+      params = [sourceOrArxivId as string];
+    }
+
+    const result = await client.query(query, params);
     return result.rows[0] || null;
   } catch (error) {
-    console.error('논문 캐시 조회 오류:', error);
     return null;
   } finally {
     client.release();
   }
 }
 
-// 번역 저장
-export async function saveTranslation(arxivId: string, translation: string): Promise<boolean> {
+export async function saveTranslation(source: PaperSource, sourceId: string, translation: string): Promise<boolean>;
+export async function saveTranslation(arxivId: string, translation: string): Promise<boolean>;
+export async function saveTranslation(sourceOrArxivId: PaperSource | string, sourceIdOrTranslation: string, translation?: string): Promise<boolean> {
   const client = await pool.connect();
   try {
-    await client.query(
-      `INSERT INTO paper_cache (arxiv_id, translation, translated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (arxiv_id)
-       DO UPDATE SET translation = $2, translated_at = NOW()`,
-      [arxivId, translation]
-    );
+    if (translation !== undefined) {
+      console.log(`[DB] Saving translation: source=${sourceOrArxivId}, sourceId=${sourceIdOrTranslation}`);
+      await client.query(
+        `INSERT INTO paper_cache (source, source_id, translation, translated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (source, source_id)
+         DO UPDATE SET translation = $3, translated_at = NOW()`,
+        [sourceOrArxivId, sourceIdOrTranslation, translation]
+      );
+      console.log(`[DB] Translation saved successfully`);
+    } else {
+      console.log(`[DB] Saving translation: source=arxiv, sourceId=${sourceOrArxivId}`);
+      await client.query(
+        `INSERT INTO paper_cache (source, source_id, arxiv_id, translation, translated_at)
+         VALUES ($1, $2, $2, $3, NOW())
+         ON CONFLICT (source, source_id)
+         DO UPDATE SET translation = $3, translated_at = NOW()`,
+        ['arxiv', sourceOrArxivId, sourceIdOrTranslation]
+      );
+      console.log(`[DB] Translation saved successfully`);
+    }
     return true;
   } catch (error) {
-    console.error('번역 저장 오류:', error);
+    console.error(`[DB] Failed to save translation:`, error);
     return false;
   } finally {
     client.release();
   }
 }
 
-// AI 분석 결과 저장
+export async function saveAnalysis(
+  source: PaperSource,
+  sourceId: string,
+  analysis: { summary: string; keyPoints: string[]; methodology: string; contributions: string[]; limitations: string[] }
+): Promise<boolean>;
 export async function saveAnalysis(
   arxivId: string,
   analysis: { summary: string; keyPoints: string[]; methodology: string; contributions: string[]; limitations: string[] }
+): Promise<boolean>;
+export async function saveAnalysis(
+  sourceOrArxivId: PaperSource | string,
+  sourceIdOrAnalysis: string | { summary: string; keyPoints: string[]; methodology: string; contributions: string[]; limitations: string[] },
+  analysis?: { summary: string; keyPoints: string[]; methodology: string; contributions: string[]; limitations: string[] }
 ): Promise<boolean> {
   const client = await pool.connect();
   try {
-    await client.query(
-      `INSERT INTO paper_cache (arxiv_id, analysis, analyzed_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (arxiv_id)
-       DO UPDATE SET analysis = $2, analyzed_at = NOW()`,
-      [arxivId, JSON.stringify(analysis)]
-    );
+    if (analysis !== undefined) {
+      console.log(`[DB] Saving analysis: source=${sourceOrArxivId}, sourceId=${sourceIdOrAnalysis}`);
+      await client.query(
+        `INSERT INTO paper_cache (source, source_id, analysis, analyzed_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (source, source_id)
+         DO UPDATE SET analysis = $3, analyzed_at = NOW()`,
+        [sourceOrArxivId, sourceIdOrAnalysis, JSON.stringify(analysis)]
+      );
+      console.log(`[DB] Analysis saved successfully`);
+    } else {
+      console.log(`[DB] Saving analysis: source=arxiv, sourceId=${sourceOrArxivId}`);
+      await client.query(
+        `INSERT INTO paper_cache (source, source_id, arxiv_id, analysis, analyzed_at)
+         VALUES ($1, $2, $2, $3, NOW())
+         ON CONFLICT (source, source_id)
+         DO UPDATE SET analysis = $3, analyzed_at = NOW()`,
+        ['arxiv', sourceOrArxivId, JSON.stringify(sourceIdOrAnalysis)]
+      );
+      console.log(`[DB] Analysis saved successfully`);
+    }
     return true;
   } catch (error) {
-    console.error('분석 결과 저장 오류:', error);
+    console.error(`[DB] Failed to save analysis:`, error);
     return false;
   } finally {
     client.release();
   }
 }
 
-// 인포그래픽 URL 저장
-export async function saveInfographicUrl(arxivId: string, url: string): Promise<boolean> {
+export async function saveInfographicUrl(source: PaperSource, sourceId: string, url: string): Promise<boolean>;
+export async function saveInfographicUrl(arxivId: string, url: string): Promise<boolean>;
+export async function saveInfographicUrl(sourceOrArxivId: PaperSource | string, sourceIdOrUrl: string, url?: string): Promise<boolean> {
   const client = await pool.connect();
   try {
-    await client.query(
-      `INSERT INTO paper_cache (arxiv_id, infographic_url, infographic_created_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (arxiv_id)
-       DO UPDATE SET infographic_url = $2, infographic_created_at = NOW()`,
-      [arxivId, url]
-    );
+    if (url !== undefined) {
+      console.log(`[DB] Saving infographic URL: source=${sourceOrArxivId}, sourceId=${sourceIdOrUrl}`);
+      await client.query(
+        `INSERT INTO paper_cache (source, source_id, infographic_url, infographic_created_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (source, source_id)
+         DO UPDATE SET infographic_url = $3, infographic_created_at = NOW()`,
+        [sourceOrArxivId, sourceIdOrUrl, url]
+      );
+      console.log(`[DB] Infographic URL saved successfully`);
+    } else {
+      console.log(`[DB] Saving infographic URL: source=arxiv, sourceId=${sourceOrArxivId}`);
+      await client.query(
+        `INSERT INTO paper_cache (source, source_id, arxiv_id, infographic_url, infographic_created_at)
+         VALUES ($1, $2, $2, $3, NOW())
+         ON CONFLICT (source, source_id)
+         DO UPDATE SET infographic_url = $3, infographic_created_at = NOW()`,
+        ['arxiv', sourceOrArxivId, sourceIdOrUrl]
+      );
+      console.log(`[DB] Infographic URL saved successfully`);
+    }
     return true;
   } catch (error) {
-    console.error('인포그래픽 URL 저장 오류:', error);
+    console.error(`[DB] Failed to save infographic URL:`, error);
     return false;
   } finally {
     client.release();

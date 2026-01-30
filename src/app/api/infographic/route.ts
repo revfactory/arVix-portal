@@ -17,7 +17,7 @@ const INFOGRAPHIC_STYLE = `
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, summary, keyPoints, methodology, arxivId, forceRegenerate } = body;
+    const { title, summary, keyPoints, methodology, arxivId, source, forceRegenerate } = body;
 
     if (!title || !summary || !keyPoints) {
       return NextResponse.json(
@@ -146,7 +146,11 @@ ${keyPointsText}
 
       if (imageUrl) {
         // DB에 URL 저장
-        await saveInfographicUrl(arxivId, imageUrl);
+        if (source && source !== 'arxiv') {
+          await saveInfographicUrl(source, arxivId, imageUrl);
+        } else {
+          await saveInfographicUrl(arxivId, imageUrl);
+        }
       }
     }
 

@@ -136,7 +136,7 @@ function HomeContent() {
         params.set('category', category);
       }
 
-      const response = await fetch(`/api/arxiv?${params.toString()}`);
+      const response = await fetch(`/api/papers?source=both&${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setPapers(data.papers);
@@ -179,7 +179,7 @@ function HomeContent() {
         params.set('category', selectedCategory);
       }
 
-      const response = await fetch(`/api/arxiv?${params.toString()}`);
+      const response = await fetch(`/api/papers?source=both&${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         // 중복 논문 필터링

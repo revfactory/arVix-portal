@@ -1,5 +1,9 @@
+export type PaperSource = 'arxiv' | 'openreview';
+
 export interface Paper {
-  arxivId: string;
+  source: PaperSource;
+  sourceId: string;
+  sourceUrl: string;
   title: string;
   authors: string[];
   abstract: string;
@@ -7,7 +11,8 @@ export interface Paper {
   publishedAt: string;
   updatedAt: string;
   pdfUrl: string;
-  arxivUrl: string;
+  arxivId?: string;
+  arxivUrl?: string;
 }
 
 export interface Bookmark {
@@ -33,6 +38,7 @@ export interface AIAnalysis {
 
 export interface SearchParams {
   query: string;
+  source?: PaperSource | 'both';
   category?: string;
   maxResults?: number;
   start?: number;

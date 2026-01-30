@@ -7,9 +7,10 @@ interface AIAnalysisProps {
   title: string;
   abstract: string;
   arxivId: string;
+  source?: string;
 }
 
-export default function AIAnalysis({ title, abstract, arxivId }: AIAnalysisProps) {
+export default function AIAnalysis({ title, abstract, arxivId, source }: AIAnalysisProps) {
   const [analysis, setAnalysis] = useState<AIAnalysisType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +47,7 @@ export default function AIAnalysis({ title, abstract, arxivId }: AIAnalysisProps
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title, abstract, arxivId, mode: 'full' }),
+        body: JSON.stringify({ title, abstract, arxivId, source, mode: 'full' }),
       });
 
       if (!response.ok) {

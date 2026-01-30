@@ -8,7 +8,7 @@ const genAI = new GoogleGenerativeAI(apiKey);
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text, arxivId } = body;
+    const { text, arxivId, source } = body;
 
     if (!text) {
       return NextResponse.json({ error: '번역할 텍스트가 필요합니다' }, { status: 400 });
@@ -47,7 +47,11 @@ ${text}
 
     // 번역 결과 캐시에 저장
     if (arxivId) {
-      await saveTranslation(arxivId, translatedText);
+      if (source && source !== 'arxiv') {
+        await saveTranslation(source, arxivId, translatedText);
+      } else {
+        await saveTranslation(arxivId, translatedText);
+      }
     }
 
     return NextResponse.json({ translation: translatedText, cached: false });

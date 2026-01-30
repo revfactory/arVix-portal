@@ -36,7 +36,9 @@ function parseEntry(entry: ArxivEntry): Paper {
   const pdfUrl = pdfLink ? pdfLink.$.href : `https://arxiv.org/pdf/${arxivId}.pdf`;
 
   return {
-    arxivId,
+    source: 'arxiv',
+    sourceId: arxivId,
+    sourceUrl: `https://arxiv.org/abs/${arxivId}`,
     title: entry.title[0].replace(/\s+/g, ' ').trim(),
     authors: entry.author.map(a => a.name[0]),
     abstract: entry.summary[0].replace(/\s+/g, ' ').trim(),
@@ -44,6 +46,7 @@ function parseEntry(entry: ArxivEntry): Paper {
     publishedAt: entry.published[0],
     updatedAt: entry.updated[0],
     pdfUrl,
+    arxivId,
     arxivUrl: `https://arxiv.org/abs/${arxivId}`,
   };
 }

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Paper, getCategoryName } from '@/types/paper';
 import BookmarkButton from './BookmarkButton';
 import BucketButton from './BucketButton';
+import SourceBadge from './SourceBadge';
 
 interface PaperCardProps {
   paper: Paper;
@@ -58,8 +59,9 @@ export default function PaperCard({ paper }: PaperCardProps) {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-lg hover:border-blue-200 transition-all duration-200 flex flex-col h-full group">
-      {/* 카테고리 태그 */}
+      {/* 카테고리 태그 및 소스 배지 */}
       <div className="flex flex-wrap gap-1.5 mb-3">
+        <SourceBadge source={paper.source} size="sm" />
         {paper.categories.slice(0, 2).map((category) => (
           <span
             key={category}
@@ -78,7 +80,7 @@ export default function PaperCard({ paper }: PaperCardProps) {
 
       {/* 제목 */}
       <Link
-        href={`/paper/${encodeURIComponent(paper.arxivId)}`}
+        href={`/paper/${paper.source}:${encodeURIComponent(paper.sourceId)}`}
         className="flex-grow"
       >
         <h3 className="text-base font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 mb-2 leading-snug">
@@ -88,7 +90,9 @@ export default function PaperCard({ paper }: PaperCardProps) {
 
       {/* 논문 ID, 저자 및 날짜 */}
       <div className="text-xs text-gray-500 mb-3">
-        <p className="font-mono text-gray-400 mb-1">arXiv:{paper.arxivId}</p>
+        <p className="font-mono text-gray-400 mb-1">
+          {paper.source === 'arxiv' ? `arXiv:${paper.sourceId}` : `ID:${paper.sourceId.slice(0, 12)}...`}
+        </p>
         <p className="truncate">{paper.authors.slice(0, 2).join(', ')}{paper.authors.length > 2 && ` 외 ${paper.authors.length - 2}명`}</p>
         <p className="mt-1">{formatDate(paper.publishedAt)}</p>
       </div>
@@ -102,19 +106,21 @@ export default function PaperCard({ paper }: PaperCardProps) {
       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
         <div className="flex items-center gap-2">
           <Link
-            href={`/paper/${encodeURIComponent(paper.arxivId)}`}
+            href={`/paper/${paper.source}:${encodeURIComponent(paper.sourceId)}`}
             className="text-xs font-medium text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
           >
             상세보기
           </Link>
-          <a
-            href={paper.pdfUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-medium text-gray-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
-          >
-            PDF
-          </a>
+          {paper.pdfUrl && (
+            <a
+              href={paper.pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-gray-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+            >
+              PDF
+            </a>
+          )}
           <button
             onClick={findSimilarPapers}
             disabled={isFindingSimilar}

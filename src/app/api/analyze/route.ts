@@ -5,7 +5,7 @@ import { getPaperCache, saveAnalysis } from '@/lib/db';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, abstract, arxivId, mode = 'full' } = body;
+    const { title, abstract, arxivId, source, mode = 'full' } = body;
 
     if (!abstract) {
       return NextResponse.json({ error: '초록이 필요합니다' }, { status: 400 });
@@ -33,7 +33,11 @@ export async function POST(request: NextRequest) {
 
     // 분석 결과 캐시에 저장
     if (arxivId && analysis) {
-      await saveAnalysis(arxivId, analysis);
+      if (source && source !== 'arxiv') {
+        await saveAnalysis(source, arxivId, analysis);
+      } else {
+        await saveAnalysis(arxivId, analysis);
+      }
     }
 
     return NextResponse.json({ ...analysis, cached: false });
